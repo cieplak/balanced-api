@@ -99,6 +99,7 @@ Feature: Credits
         "status": "succeeded"
       }
       """
+    And the credit was successfully created
 
   Scenario: Push money to an existing debit card
     Given I have sufficient funds in my marketplace
@@ -119,8 +120,13 @@ Feature: Credits
         "status": "pending"
       }
       """
+    And the credit was successfully created
 
   Scenario: Fail to push money to a card
+    We provide a card number, "4210101111111112", which has a `can_credit` of
+    false. This scenario happens most often with credit cards, which you cannot
+    push money to.
+
     Given I have sufficient funds in my marketplace
     When I POST to /credits with the JSON API body:
       """
@@ -143,3 +149,62 @@ Feature: Credits
         "status": "failed"
       }
       """
+    But the credit was successfully created
+
+  Scenario: Fail to push money to a card
+    We provide a card number, "4210101111111112", which has a `can_credit` of
+    false. This scenario happens most often with credit cards, which you cannot
+    push money to.
+
+    Given I have sufficient funds in my marketplace
+    When I POST to /credits with the JSON API body:
+      """
+      {
+        "credits": [{
+          "destination": {
+            "number": "4210101111111112",
+              "expiration_month": "12",
+              "expiration_year": 2016
+          },
+            "amount": 1234
+        }]
+      }
+      """
+    Then I should get a 409 Conflict status code
+    And the response is valid according to the "errors" schema
+    And the fields on this error match:
+      """
+      {
+        "category_code": "funding-destination-not-creditable"
+      }
+      """
+    But the credit was successfully created
+
+  Scenario: Fail to push money to a card, part two
+    We provide a card number, "4210101111111113", which has exceeded
+    its total amount of allowable credits in this period. Visa OCT, as
+    an example, has a $2,500/transaction limit.
+
+    Given I have sufficient funds in my marketplace
+    When I POST to /credits with the JSON API body:
+      """
+      {
+        "credits": [{
+          "destination": {
+            "number": "4210101111111113",
+            "expiration_month": "12",
+            "expiration_year": 2016
+          },
+            "amount": 1234
+        }]
+      }
+      """
+    Then I should get a 409 Conflict status code
+    And the response is valid according to the "errors" schema
+    And the fields on this error match:
+      """
+      {
+        "category_code": "excessive-amount"
+      }
+      """
+    But the credit was successfully created
